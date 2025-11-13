@@ -63,18 +63,21 @@ TEMPLATE = """
 
 @app.route('/benford')
 def benford():
-  # Parámetros dinámicos ?limit=400&workers=20
+  # Parámetros dinámicos ?limit=400&workers=20&mode=login|logout
   limit = request.args.get('limit', '9999')
-  workers = request.args.get('workers', '35')
+  workers = request.args.get('workers', '3')
+  mode = request.args.get('mode', 'login')
   try:
     limit_int = max(5, min(int(limit), 9999))  # rango seguro hasta 9999
   except:
     limit_int = 9999
   try:
-    workers_int = max(1, min(int(workers), 20))  # proteger recursos
+    # Reducimos agresividad para evitar bloqueos: máximo 5
+    workers_int = max(1, min(int(workers), 5))
   except:
-    workers_int = 20
-  results = scrape_for_benford(limit_users=limit_int, resume=True, counts_logged_out=True, max_workers=workers_int)
+    workers_int = 3
+  counts_logged_out = (mode != 'login')
+  results = scrape_for_benford(limit_users=limit_int, resume=True, counts_logged_out=counts_logged_out, max_workers=workers_int)
   analysis = benford_analysis(results)
   plot_png = benford_plot_png(analysis)
   rows = []
@@ -97,7 +100,8 @@ def benford():
 def index():
   # Redirige a /benford con valores por defecto para que no tengas que escribir la ruta completa
   # Workers reducido a 3 para evitar bloqueos de Instagram
-  return redirect(url_for('benford', limit=9999, workers=50))
+  # Modo por defecto: login (usa sesión para contar followers)
+  return redirect(url_for('benford', limit=9999, workers=3, mode='login'))
 
 if __name__ == '__main__':
     # Iniciar servidor Flask

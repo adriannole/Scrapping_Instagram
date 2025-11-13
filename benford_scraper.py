@@ -6,6 +6,7 @@ import re
 import json
 from io import BytesIO
 import base64
+from typing import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -13,6 +14,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import requests
 
 # Configuración básica (usar variables de entorno para credenciales en producción)
 INSTA_USERNAME = os.getenv("INSTA_USER", "0978925415")
@@ -99,6 +101,42 @@ def normalize_count(txt: str | None):
         return int(float(t) * mult)
     except:
         return None
+
+def parse_followers_from_html(html: str) -> int | None:
+    """Extrae el número de seguidores desde el HTML usando múltiples estrategias/idiomas."""
+    patterns = [
+        r'"edge_followed_by"\s*:\s*\{\s*"count"\s*:\s*(\d+)\s*\}',  # GraphQL JSON
+        r'"followers_count"\s*:\s*(\d+)',
+        r'"follower_count"\s*:\s*(\d+)',
+        r'(?:content=|\>)\s*"?([0-9.,]+[kKmM]?)\s+(?:seguidores|followers)"?',  # meta og:description u otros
+        r'([0-9.,]+[kKmM]?)\s+(?:seguidores|followers)'
+    ]
+    for p in patterns:
+        m = re.search(p, html, flags=re.IGNORECASE)
+        if m:
+            return normalize_count(m.group(1))
+    return None
+
+# ---------------------------------
+# Debug helpers
+# ---------------------------------
+
+DEBUG_DUMPS = 0
+
+def save_debug_html(username: str, html: str):
+    global DEBUG_DUMPS
+    if DEBUG_DUMPS >= 10:
+        return
+    try:
+        os.makedirs('debug_html', exist_ok=True)
+        safe = re.sub(r'[^a-zA-Z0-9_.-]', '_', username)
+        path = os.path.join('debug_html', f'{safe}.html')
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(html)
+        DEBUG_DUMPS += 1
+        print(f"[DEBUG] HTML guardado: {path}")
+    except Exception as e:
+        print(f"[WARN] No se pudo guardar debug HTML: {e}")
 
 # ---------------------------------
 # Selenium inicialización
@@ -360,21 +398,249 @@ def profile_followers_logged_out(username: str) -> int | None:
         PACER.sleep(1.5, 3.5, label='intersticial login check')
         dismiss_login_interstitial(drv)
         PACER.sleep(1.0, 2.0, label='post dismiss')
-        # Intentar mismo selector
+        # Detectar posibles mensajes de rate limit o bloqueo
+        pg_pre = drv.page_source
+        if re.search(r'please wait a few minutes|try again later', pg_pre, flags=re.IGNORECASE):
+            print(f"[RATE-LIMIT] Instagram limitó las peticiones (logged-out) para {username}")
+            return None
+        # 1) Intentar recuperar desde el enlace de seguidores (innerText o title)
         try:
-            el = drv.find_element(By.XPATH, '//a[contains(@href,"/followers")]/span/span')
-            raw = el.text.strip()
-            return normalize_count(raw)
-        except:
-            pg = drv.page_source
-            m = re.search(r'([0-9,.]+[kKmM]?) seguidores', pg)
+            a = drv.find_element(By.XPATH, '//a[contains(@href, "/followers")]')
+            raw = drv.execute_script('return arguments[0].innerText', a) or ''
+            raw = raw.strip()
+            # Si viene algo como "1.234 seguidores" o "1,2k"
+            m = re.search(r'([0-9.,]+[kKmM]?)', raw)
             if m:
-                return normalize_count(m.group(1))
+                val = normalize_count(m.group(1))
+                if val:
+                    return val
+            # A veces el número está en el atributo title
+            title = a.get_attribute('title')
+            if title:
+                val = normalize_count(title.strip())
+                if val:
+                    return val
+        except Exception:
+            pass
+
+        # 2) Intentar meta og:description
+        try:
+            meta = drv.find_element(By.XPATH, '//meta[@property="og:description"]')
+            content = meta.get_attribute('content') or ''
+            m = re.search(r'([0-9.,]+[kKmM]?)\s+(?:seguidores|followers)', content, flags=re.IGNORECASE)
+            if m:
+                val = normalize_count(m.group(1))
+                if val is not None:
+                    return val
+        except Exception:
+            pass
+
+        # 3) Fallback: parsear HTML completo
+        pg = drv.page_source
+        val = parse_followers_from_html(pg)
+        if val is not None:
+            return val
+        # Guardar HTML para diagnóstico
+        save_debug_html(username, pg)
     except Exception as e:
         print(f"[WARN] Error obteniendo followers de {username}: {e}")
     finally:
         drv.quit()
     return None
+
+
+def profile_followers_logged_in(driver, username: str) -> int | None:
+    """Usa el driver logueado para abrir el perfil y extraer el número de seguidores."""
+    try:
+        timed_get(driver, f'https://www.instagram.com/{username}/', label=f'perfil (logged-in) {username}')
+        PACER.sleep(1.2, 2.4, label='espera perfil')
+        # Detectar estados de bloqueo
+        pg_pre = driver.page_source
+        if re.search(r'please wait a few minutes|try again later', pg_pre, flags=re.IGNORECASE):
+            print(f"[RATE-LIMIT] Instagram limitó (logged-in) para {username}")
+            return None
+        # Intentos con el enlace de seguidores
+        try:
+            a = driver.find_element(By.XPATH, '//a[contains(@href, "/followers")]')
+            raw = driver.execute_script('return arguments[0].innerText', a) or ''
+            m = re.search(r'([0-9.,]+[kKmM]?)', raw)
+            if m:
+                v = normalize_count(m.group(1))
+                if v:
+                    return v
+            title = a.get_attribute('title')
+            if title:
+                v = normalize_count(title.strip())
+                if v:
+                    return v
+        except Exception:
+            pass
+        # Meta description
+        try:
+            meta = driver.find_element(By.XPATH, '//meta[@property="og:description"]')
+            content = meta.get_attribute('content') or ''
+            m = re.search(r'([0-9.,]+[kKmM]?)\s+(?:seguidores|followers)', content, flags=re.IGNORECASE)
+            if m:
+                v = normalize_count(m.group(1))
+                if v is not None:
+                    return v
+        except Exception:
+            pass
+        # Fallback parse HTML
+        v = parse_followers_from_html(driver.page_source)
+        if v is not None:
+            return v
+        save_debug_html(username, driver.page_source)
+    except Exception as e:
+        print(f"[WARN] Error (logged-in) en {username}: {e}")
+    return None
+
+
+def fetch_followers_logged_in_sequential(driver, usernames: Iterable[str], existing_cache: dict, min_delay=2.0, max_delay=4.0):
+    """Navega secuencialmente con sesión logueada y actualiza el cache de followers."""
+    processed = 0
+    for u in usernames:
+        if u in existing_cache and isinstance(existing_cache[u], int):
+            continue
+        time.sleep(random.uniform(min_delay, max_delay))
+        v = profile_followers_logged_in(driver, u)
+        existing_cache[u] = v
+        processed += 1
+        if processed % 20 == 0:
+            try:
+                with open('cache_followers.json', 'w', encoding='utf-8') as f:
+                    json.dump(existing_cache, f, ensure_ascii=False, indent=2)
+                print(f"💾 Progreso (logueado) guardado: {len(existing_cache)} usuarios")
+            except Exception as e:
+                print(f"[WARN] No se pudo guardar progreso (logueado): {e}")
+
+
+def get_session_from_driver(driver) -> requests.Session:
+    """Extrae cookies del driver Selenium y crea una sesión de requests."""
+    session = requests.Session()
+    
+    # Extraer cookies importantes
+    csrftoken = None
+    for cookie in driver.get_cookies():
+        session.cookies.set(cookie['name'], cookie['value'], domain=cookie.get('domain'))
+        if cookie['name'] == 'csrftoken':
+            csrftoken = cookie['value']
+    
+    # Headers completos para simular navegador real
+    session.headers.update({
+        'User-Agent': driver.execute_script('return navigator.userAgent'),
+        'Accept': '*/*',
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Referer': 'https://www.instagram.com/',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-IG-App-ID': '936619743392459',  # App ID de Instagram Web
+        'X-ASBD-ID': '129477',
+        'X-IG-WWW-Claim': '0',
+        'Origin': 'https://www.instagram.com',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+    })
+    
+    if csrftoken:
+        session.headers['X-CSRFToken'] = csrftoken
+    
+    return session
+
+
+def fetch_user_info_api(session: requests.Session, username: str, retries=3) -> dict | None:
+    """Consulta la API interna de Instagram para obtener info del usuario (incluye followers)."""
+    for attempt in range(retries):
+        try:
+            url = f'https://www.instagram.com/api/v1/users/web_profile_info/?username={username}'
+            time.sleep(random.uniform(0.5, 1.2))  # Delay más conservador
+            resp = session.get(url, timeout=15)
+            
+            if resp.status_code == 200:
+                data = resp.json()
+                user = data.get('data', {}).get('user', {})
+                if user:
+                    followers = user.get('edge_followed_by', {}).get('count')
+                    if followers is not None:
+                        return {'username': username, 'followers': followers}
+            elif resp.status_code == 429:
+                wait_time = (2 ** attempt) * 3  # Backoff exponencial
+                print(f"[RATE-LIMIT API] Esperando {wait_time}s antes de reintentar...")
+                time.sleep(wait_time)
+                continue
+            elif resp.status_code == 404:
+                print(f"[INFO] Usuario {username} no encontrado")
+                return {'username': username, 'followers': None}
+            else:
+                print(f"[WARN] API retornó {resp.status_code} para {username}")
+                if attempt < retries - 1:
+                    time.sleep(random.uniform(2, 4))
+                    continue
+        except Exception as e:
+            print(f"[WARN] Error en API para {username} (intento {attempt+1}/{retries}): {e}")
+            if attempt < retries - 1:
+                time.sleep(random.uniform(1, 3))
+                continue
+    
+    return None
+
+
+def fetch_followers_api_batch(driver, usernames: Iterable[str], existing_cache: dict, max_workers=5):
+    """Usa requests con cookies del driver para consultar followers vía API en paralelo."""
+    session = get_session_from_driver(driver)
+    to_process = [u for u in usernames if u not in existing_cache or not isinstance(existing_cache.get(u), int)]
+    
+    print(f"🚀 Consultando {len(to_process)} usuarios vía API de Instagram (paralelo)...")
+    
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    futures = {executor.submit(fetch_user_info_api, session, u): u for u in to_process}
+    
+    processed = 0
+    failed_users = []
+    
+    for fut in as_completed(futures):
+        u = futures[fut]
+        try:
+            result = fut.result()
+            if result and result.get('followers') is not None:
+                existing_cache[u] = result['followers']
+            else:
+                # Marcar para fallback
+                failed_users.append(u)
+                existing_cache[u] = None
+            processed += 1
+            if processed % 20 == 0:
+                print(f"  ⚡ API: {processed}/{len(to_process)} procesados")
+                try:
+                    with open('cache_followers.json', 'w', encoding='utf-8') as f:
+                        json.dump(existing_cache, f, ensure_ascii=False, indent=2)
+                except Exception as e:
+                    print(f"[WARN] No se pudo guardar progreso API: {e}")
+        except Exception as e:
+            print(f"[WARN] Error procesando {u}: {e}")
+            failed_users.append(u)
+            existing_cache[u] = None
+    
+    executor.shutdown(wait=True)
+    print(f"✅ API completada: {processed} usuarios procesados")
+    
+    # Fallback: intentar obtener los que fallaron usando navegación
+    if failed_users:
+        print(f"🔄 Fallback: Intentando obtener {len(failed_users)} usuarios que fallaron con API...")
+        for u in failed_users[:20]:  # Limitar a 20 para no tardar mucho
+            time.sleep(random.uniform(2, 4))
+            val = profile_followers_logged_in(driver, u)
+            if val is not None:
+                existing_cache[u] = val
+                print(f"  ✅ Fallback OK: {u} = {val} seguidores")
+        
+        # Guardar después del fallback
+        try:
+            with open('cache_followers.json', 'w', encoding='utf-8') as f:
+                json.dump(existing_cache, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[WARN] No se pudo guardar después de fallback: {e}")
 
 
 def fetch_followers_logged_out_many(usernames: list[str], max_workers: int = 20) -> dict:
@@ -422,6 +688,10 @@ def scrape_for_benford(limit_users=30, resume=True, counts_logged_out=True, max_
         print(f"🚀 Iniciando scraping progresivo: scroll + extracción paralela simultánea")
         usernames = collect_usernames_progressive(driver, limit=limit_users, existing_cache=cache,
                                                   max_workers=max_workers, counts_logged_out=counts_logged_out)
+        # Si preferimos evitar bloqueos, calcular counts con el mismo driver logueado
+        if not counts_logged_out:
+            print("🔐 Usando sesión logueada para obtener seguidores vía API (rápido)")
+            fetch_followers_api_batch(driver, usernames, cache, max_workers=5)
     finally:
         driver.quit()
 
