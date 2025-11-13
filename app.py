@@ -4,42 +4,17 @@ import time
 import random
 import re
 
-# De la librería 'selenium', importamos 'webdriver'.
-# Este es el módulo principal que nos deja controlar el navegador.
 from selenium import webdriver
 
-# De 'selenium', importamos 'By'. Se usa para especificar
-# CÓMO vamos a buscar un elemento (por ej: por su ID,
-# por su nombre, por XPATH, etc.).
 from selenium.webdriver.common.by import By
 
 # De 'selenium', importamos 'Keys'. Se usa para simular
 # que presionamos teclas del teclado (como Enter, Tab, F5, etc.).
 from selenium.webdriver.common.keys import Keys
 
-# Esta línea está "comentada" con un '#'.
-# Python la ignora por completo. Originalmente, se usaba
-# para decirle a Selenium manualmente dónde estaba el "chromedriver.exe".
-# from selenium.webdriver.chrome.service import Service
 
-# Importa la librería 'pandas' y le da el apodo 'pd'.
-# La usaremos después para organizar nuestros datos como en una
-# hoja de cálculo.
 import pandas as pd
 
-# --- Fase 2: El Scraper ---
-# Esto es solo un comentario para organizar el código.
-
-# Este comentario explica lo que hace la línea de abajo.
-# Iniciar Chrome sin especificar ejecutable ni Service (Selenium Manager lo gestiona)
-
-# --- ¡Esta es la línea clave! ---
-# 1. Llama a 'webdriver.Chrome()'.
-# 2. Selenium Manager (que viene adentro) ve que no le diste
-#    una ruta, así que automáticamente busca tu versión de Chrome,
-#    descarga el 'chromedriver.exe' correcto y lo usa.
-# 3. La variable 'driver' se convierte en nuestro "control remoto"
-#    para la ventana del navegador que se acaba de abrir.
 
 
 # Imprime un mensaje en tu terminal para avisar que el navegador se inició.
