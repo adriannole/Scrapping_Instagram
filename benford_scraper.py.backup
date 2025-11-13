@@ -1,0 +1,633 @@
+import os
+import time
+import random
+import math
+import re
+import json
+from io import BytesIO
+import base64
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# Configuración básica (usar variables de entorno para credenciales en producción)
+INSTA_USERNAME = os.getenv("INSTA_USER", "0978925415")
+INSTA_PASSWORD = os.getenv("INSTA_PASS", "Arbolito157@")
+TARGET_ACCOUNT = os.getenv("INSTA_TARGET", "palomita.buena_onda")
+
+# ---------------------------------
+# Utilidades
+# ---------------------------------
+
+USER_AGENTS = [
+    # Pool simple de user-agents reales (rotación ligera)
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15'
+]
+
+class Pacer:
+    """Pacer adaptativo para tiempos humanos con factor de escala dinámico."""
+    def __init__(self) -> None:
+        self.scale = 1.0
+        self.ma_page = None  # media móvil de tiempos de carga
+
+    def sleep(self, a=1.2, b=3.5, label: str | None = None):
+        # variación aleatoria + factor de escala
+        base = random.uniform(a, b)
+        # Scroll profesional con verificación dual
+        driver.execute_script('arguments[0].scrollTop = 50', scroll_box)
+        time.sleep(1.5)
+        last_height = driver.execute_script('return arguments[0].scrollHeight', scroll_box)
+        last_user_count = 0
+        stable_rounds = 0
+    
+        print(f"📜 Scroll profesional iniciado. Altura: {last_height}px")
+    
+        for i in range(scroll_limit):
+            # Scroll adaptativo: más agresivo al inicio, más cuidadoso si se atasca
+            if stable_rounds > 0:
+                step = random.randint(300, 600)  # pasos pequeños
+            else:
+                step = random.randint(800, 1400)  # pasos grandes
+        
+            driver.execute_script('arguments[0].scrollTop += arguments[1]', scroll_box, step)
+        
+            # Pausa adaptativa según estado
+            if stable_rounds > 2:
+                time.sleep(random.uniform(2.5, 4.0))
+            else:
+                time.sleep(random.uniform(1.2, 2.2))
+
+            # Recolectar nuevos usuarios con selector TAG + filtrado
+            links = scroll_box.find_elements(By.TAG_NAME, 'a')
+            new_users = []
+            for link in links:
+                try:
+                    href = link.get_attribute('href')
+                    if not href or 'instagram.com' not in href:
+                        continue
+                    if any(x in href for x in ['/p/', '/reel/', '/explore/', '/stories/', '/direct/']):
+                        continue
+                    parts = href.rstrip('/').split('/')
+                    if len(parts) > 0:
+                        u = parts[-1]
+                        if u and len(u) > 0 and u not in ['accounts', 'explore', 'reels', 'direct', 'stories'] and u not in usernames_seen:
+                            usernames_seen.add(u)
+                            new_users.append(u)
+                except:
+                    continue
+        
+            # Lanzar workers para nuevos usuarios
+            for u in new_users:
+                if u not in existing_cache and u not in futures:
+                    if counts_logged_out:
+                        fut = executor.submit(profile_followers_logged_out, u)
+                        futures[fut] = u
+        
+            # Progreso cada 3 scrolls
+            if (i + 1) % 3 == 0:
+                print(f"  📊 Scroll #{i+1}: {len(usernames_seen)} usuarios | {len(futures)} procesando")
+        
+            # Verificar límite
+            if len(usernames_seen) >= limit:
+                print(f"✅ Límite alcanzado: {limit} usuarios en scroll #{i+1}")
+                break
+
+            # Verificación DUAL: altura Y cantidad de usuarios
+            new_height = driver.execute_script('return arguments[0].scrollHeight', scroll_box)
+            current_user_count = len(usernames_seen)
+        
+            # Solo incrementar "stable" si AMBOS están estancados
+            if new_height == last_height and current_user_count == last_user_count:
+                stable_rounds += 1
+            
+                # Técnicas progresivas de recuperación
+                if stable_rounds == 2:
+                    print("  ⚡ Sacudida arriba/abajo...")
+                    driver.execute_script('arguments[0].scrollTop -= 150', scroll_box)
+                    time.sleep(0.8)
+                    driver.execute_script('arguments[0].scrollTop += 350', scroll_box)
+                    time.sleep(1.8)
+                
+                elif stable_rounds == 4:
+                    print("  ⚡ WheelEvent sintético...")
+                    try:
+                        driver.execute_script(
+                            'arguments[0].dispatchEvent(new WheelEvent("wheel",{deltaY:2500,bubbles:true}))',
+                            scroll_box
+                        )
+                        time.sleep(2.5)
+                    except:
+                        pass
+                    
+                elif stable_rounds == 6:
+                    print("  ⚡ Scroll forzado al final + PageDown...")
+                    try:
+                        driver.execute_script('arguments[0].scrollTop = arguments[0].scrollHeight', scroll_box)
+                        time.sleep(1.8)
+                        scroll_box.send_keys(Keys.PAGE_DOWN)
+                        time.sleep(2.2)
+                    except:
+                        pass
+                    
+                elif stable_rounds == 8:
+                    print("  ⚡ Movimiento a último elemento + scroll...")
+                    try:
+                        last_link = scroll_box.find_elements(By.TAG_NAME, 'a')[-1]
+                        ActionChains(driver).move_to_element(last_link).perform()
+                        time.sleep(1.2)
+                        driver.execute_script('arguments[0].scrollIntoView({block:"end"})', last_link)
+                        time.sleep(2.5)
+                    except:
+                        pass
+                    
+                elif stable_rounds >= 12:
+                    print(f'⚠️ Scroll detenido tras múltiples intentos. Usuarios: {len(usernames_seen)}')
+                    break
+            else:
+                # Resetear contador si hubo progreso
+                stable_rounds = 0
+                last_height = new_height
+                last_user_count = current_user_count
+        
+            # Pausa estratégica cada 10 scrolls
+            if (i + 1) % 10 == 0:
+                time.sleep(random.uniform(2.5, 4.5))
+    opts.add_argument(f'user-agent={ua}')
+    opts.add_experimental_option('excludeSwitches', ['enable-automation'])
+    opts.add_experimental_option('useAutomationExtension', False)
+    driver = webdriver.Chrome(options=opts)
+    return driver
+
+# ---------------------------------
+# Login y scraping
+# ---------------------------------
+
+def login(driver):
+    # Intentar cargar cookies para evitar login
+    cookies_path = 'cookies.json'
+    if os.path.exists(cookies_path):
+        timed_get(driver, 'https://www.instagram.com/', label='cargar home con cookies')
+        try:
+            with open(cookies_path, 'r', encoding='utf-8') as f:
+                cookies = json.load(f)
+            for c in cookies:
+                # Ajustar campos requeridos por Selenium
+                c = {k: v for k, v in c.items() if k in ['name', 'value', 'domain', 'path', 'expiry', 'secure', 'httpOnly', 'sameSite']}
+                driver.add_cookie(c)
+            driver.refresh()
+            PACER.sleep(4, 7, label='post cookies refresh')
+            if 'login' not in driver.current_url:
+                print('🔐 Login por cookies OK')
+                return
+        except Exception as e:
+            print(f'Cookies no aplicadas: {e}')
+
+    timed_get(driver, 'https://www.instagram.com/accounts/login/', label='cargar login')
+    human_sleep(4, 6, label='espera login')
+    user_el = driver.find_element(By.NAME, 'username')
+    pass_el = driver.find_element(By.NAME, 'password')
+    user_el.send_keys(INSTA_USERNAME)
+    pass_el.send_keys(INSTA_PASSWORD)
+    pass_el.send_keys(Keys.ENTER)
+    human_sleep(7, 11, label='post login')
+    if 'login' in driver.current_url:
+        raise RuntimeError('Login falló, revisar credenciales o challenge de seguridad.')
+    # Guardar cookies para próximas sesiones
+    try:
+        with open('cookies.json', 'w', encoding='utf-8') as f:
+            json.dump(driver.get_cookies(), f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f'No se pudo guardar cookies: {e}')
+
+
+def open_followers_modal(driver):
+    timed_get(driver, f'https://www.instagram.com/{TARGET_ACCOUNT}/', label='cargar perfil objetivo')
+    human_sleep(3, 6, label='post perfil objetivo')
+    link = driver.find_element(By.XPATH, '//a[contains(@href, "/followers/")]')
+    link.click()
+    human_sleep(4, 7, label='abrir modal seguidores')
+
+
+def collect_usernames(driver, limit=30, scroll_limit=500):
+    """Obtiene usernames de seguidores hasta 'limit'. Scroll optimizado más rápido."""
+    wait = WebDriverWait(driver, 15)
+    scroll_box = None
+    try:
+        scroll_box = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div._aano')))
+    except:
+        try:
+            scroll_box = wait.until(EC.presence_of_element_located((By.XPATH, '//div[@role="dialog"]//div[contains(@style, "overflow")]')))
+        except:
+            pass
+    if not scroll_box:
+        raise RuntimeError('No se encontró scroll box de seguidores.')
+
+    # Asegurar foco/visibilidad para que el scroll afecte a este contenedor
+    try:
+        driver.execute_script("arguments[0].setAttribute('tabindex','0'); arguments[0].focus();", scroll_box)
+        ActionChains(driver).move_to_element(scroll_box).perform()
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", scroll_box)
+    except:
+        pass
+
+    usernames = set()
+    last_height = 0
+    stable_rounds = 0
+    for i in range(scroll_limit):
+        # Scroll más grande y rápido
+        step = random.randint(800, 1500)
+        driver.execute_script(
+            'arguments[0].scrollTop = Math.min(arguments[0].scrollTop + arguments[1], arguments[0].scrollHeight)',
+            scroll_box, step
+        )
+        # Espera reducida pero suficiente
+        human_sleep(1.2, 2.0, label=f'scroll {i+1}')
+
+        # Recolectar links actuales
+        links = scroll_box.find_elements(
+            By.XPATH,
+            './/a[starts-with(@href, "/") and not(contains(@href, "/p/")) and not(contains(@href, "/reel/")) and not(contains(@href, "/explore/"))]'
+        )
+        for link in links:
+            href = link.get_attribute('href')
+            if not href or any(x in href for x in ['/p/', '/reel/', '/explore/']):
+                continue
+            u = href.rstrip('/').split('/')[-1]
+            if u and u not in ['accounts', 'explore', 'reels', 'direct']:
+                usernames.add(u)
+        
+        if len(usernames) >= limit:
+            print(f"✅ Alcanzado límite de {limit} usuarios")
+            break
+
+        new_height = driver.execute_script('return arguments[0].scrollHeight', scroll_box)
+        if new_height == last_height:
+            stable_rounds += 1
+        else:
+            stable_rounds = 0
+        last_height = new_height
+
+        # Fallback solo si realmente está estancado
+        if stable_rounds == 4:
+            human_sleep(3.0, 5.0, label='pausa extra')
+            try:
+                driver.execute_script('var e=new WheelEvent("wheel",{deltaY:1200,bubbles:true}); arguments[0].dispatchEvent(e);', scroll_box)
+            except:
+                pass
+        if stable_rounds >= 6:
+            print(f'⚠️ Scroll detenido tras {len(usernames)} usuarios.')
+            break
+
+        # Solo pausa larga cada mucho tiempo
+        if (i + 1) % 25 == 0:
+            human_sleep(8.0, 12.0, label='descanso largo')
+
+    print(f"📊 Total recogidos: {len(usernames)}")
+    return list(usernames)[:limit]
+
+
+def collect_usernames_progressive(driver, limit=30, existing_cache=None, max_workers=20, counts_logged_out=True, scroll_limit=500):
+    """Scroll + extracción paralela SIMULTÁNEA para máxima velocidad.
+    Conforme se van descubriendo usernames, se lanzan workers para obtener followers."""
+    wait = WebDriverWait(driver, 15)
+    scroll_box = None
+    try:
+        scroll_box = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div._aano')))
+        print("✅ Scroll box encontrado con CSS selector")
+    except:
+        try:
+            scroll_box = wait.until(EC.presence_of_element_located((By.XPATH, '//div[@role="dialog"]//div[contains(@style, "overflow")]')))
+            print("✅ Scroll box encontrado con XPATH")
+        except:
+            pass
+    if not scroll_box:
+        raise RuntimeError('No se encontró scroll box de seguidores.')
+
+    try:
+        driver.execute_script("arguments[0].setAttribute('tabindex','0'); arguments[0].focus();", scroll_box)
+        ActionChains(driver).move_to_element(scroll_box).perform()
+        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", scroll_box)
+    except:
+        pass
+
+    if existing_cache is None:
+        existing_cache = {}
+
+    usernames_seen = set()
+    executor = ThreadPoolExecutor(max_workers=max_workers)
+    futures = {}
+    
+    last_height = driver.execute_script('return arguments[0].scrollHeight', scroll_box)
+    stable_rounds = 0
+    
+    print(f"📜 Iniciando scroll... Altura inicial: {last_height}px")
+    
+    for i in range(scroll_limit):
+        # Scroll con paso grande para ir rápido
+        step = random.randint(900, 1800)
+        driver.execute_script(
+            'arguments[0].scrollTop = arguments[0].scrollTop + arguments[1]',
+            scroll_box, step
+        )
+        
+        # Pausa corta para dar tiempo a que cargue
+        time.sleep(random.uniform(1.0, 1.8))
+
+        # Recolectar nuevos usuarios
+        links = scroll_box.find_elements(By.XPATH, './/a[contains(@href, "/")]')
+        new_users = []
+        for link in links:
+            try:
+                href = link.get_attribute('href')
+                if not href:
+                    continue
+                if any(x in href for x in ['/p/', '/reel/', '/explore/', '/accounts']):
+                    continue
+                u = href.rstrip('/').split('/')[-1]
+                if u and u not in ['accounts', 'explore', 'reels', 'direct', ''] and u not in usernames_seen:
+                    usernames_seen.add(u)
+                    new_users.append(u)
+            except:
+                continue
+        
+        # Lanzar workers para los nuevos (solo si no están en cache)
+        for u in new_users:
+            if u not in existing_cache and u not in futures:
+                if counts_logged_out:
+                    fut = executor.submit(profile_followers_logged_out, u)
+                    futures[fut] = u
+        
+        # Mostrar progreso cada 5 scrolls
+        if (i + 1) % 5 == 0:
+            print(f"  � Scroll #{i+1}: {len(usernames_seen)} usuarios | {len(futures)} en proceso")
+        
+        # Verificar si ya tenemos suficientes
+        if len(usernames_seen) >= limit:
+            print(f"✅ Alcanzado límite de {limit} usuarios en scroll #{i+1}")
+            break
+
+        # Verificar altura del scroll
+        new_height = driver.execute_script('return arguments[0].scrollHeight', scroll_box)
+        
+        if new_height == last_height:
+            stable_rounds += 1
+            # Si no crece, intentar técnicas adicionales
+            if stable_rounds == 3:
+                print("⚠️ Altura estable, intentando WheelEvent...")
+                try:
+                    driver.execute_script(
+                        'arguments[0].dispatchEvent(new WheelEvent("wheel",{deltaY:1500,bubbles:true}))',
+                        scroll_box
+                    )
+                    time.sleep(2)
+                except:
+                    pass
+            elif stable_rounds == 5:
+                print("⚠️ Intentando scroll hasta el final...")
+                try:
+                    driver.execute_script('arguments[0].scrollTop = arguments[0].scrollHeight', scroll_box)
+                    time.sleep(2)
+                except:
+                    pass
+            elif stable_rounds >= 7:
+                print(f'⚠️ Scroll detenido definitivamente tras {len(usernames_seen)} usuarios.')
+                break
+        else:
+            stable_rounds = 0
+            last_height = new_height
+    
+    # Esperar a que terminen todos los workers
+    print(f"\n⏳ Esperando resultados de {len(futures)} workers en paralelo...")
+    completed = 0
+    for fut in as_completed(futures):
+        u = futures[fut]
+        try:
+            followers = fut.result()
+            existing_cache[u] = followers
+            completed += 1
+            if completed % 20 == 0:
+                print(f"  ✅ Procesados: {completed}/{len(futures)}")
+        except Exception as e:
+            print(f"  ❌ Error en @{u}: {e}")
+            existing_cache[u] = None
+    
+    executor.shutdown(wait=True)
+    print(f"\n✅ Completado: {len(usernames_seen)} usuarios totales")
+    return list(usernames_seen)[:limit]
+
+
+def profile_followers(driver, username: str) -> int | None:
+    url = f'https://www.instagram.com/{username}/'
+    timed_get(driver, url, label=f'perfil {username}')
+    human_sleep(2.5, 5.5, label='post perfil')
+    page = driver.page_source
+    # Extraer conteo usando XPATH preferente
+    try:
+        el = driver.find_element(By.XPATH, '//a[contains(@href,"/followers")]/span/span')
+        raw = el.text.strip()
+        return normalize_count(raw)
+    except:
+        # Fallback regex (puede romperse si cambian estructura)
+        m = re.search(r'([0-9,.]+[kKmM]?) seguidores', page)
+        if m:
+            return normalize_count(m.group(1))
+    return None
+
+def dismiss_login_interstitial(driver):
+    """Intenta cerrar/ocultar el modal de inicio de sesión estando deslogueado."""
+    # 1) Intentar botón de cierre
+    candidates = [
+        (By.XPATH, '//button[@aria-label="Close" or @aria-label="Cerrar"]'),
+        (By.XPATH, '//div[@role="dialog"]//button[contains(.,"Ahora no") or contains(.,"Not now")]')
+    ]
+    for by, sel in candidates:
+        try:
+            btn = driver.find_element(by, sel)
+            btn.click()
+            PACER.sleep(0.8, 1.6, label='cerrar modal login')
+            return
+        except:
+            continue
+    # 2) ESCAPE
+    try:
+        from selenium.webdriver.common.keys import Keys
+        driver.switch_to.active_element.send_keys(Keys.ESCAPE)
+        PACER.sleep(0.5, 1.0)
+    except:
+        pass
+    # 3) Forzar ocultar overlays por JS
+    try:
+        driver.execute_script('''
+          const dialogs = document.querySelectorAll('div[role="dialog"], div[style*="position: fixed"], div[style*="position:fixed"]');
+          dialogs.forEach(d => d.style.display = 'none');
+        ''')
+    except:
+        pass
+
+def profile_followers_logged_out(username: str) -> int | None:
+    """Abrir un driver headless sin login, cerrar modal de login y obtener followers del perfil."""
+    drv = build_driver(headless=True)
+    try:
+        timed_get(drv, f'https://www.instagram.com/{username}/', label=f'perfil (logged-out) {username}')
+        PACER.sleep(1.5, 3.5, label='intersticial login check')
+        dismiss_login_interstitial(drv)
+        PACER.sleep(1.0, 2.0, label='post dismiss')
+        # Intentar mismo selector
+        try:
+            el = drv.find_element(By.XPATH, '//a[contains(@href,"/followers")]/span/span')
+            raw = el.text.strip()
+            return normalize_count(raw)
+        except:
+            pg = drv.page_source
+            m = re.search(r'([0-9,.]+[kKmM]?) seguidores', pg)
+            if m:
+                return normalize_count(m.group(1))
+        return None
+    finally:
+        drv.quit()
+
+def chunked(seq, size):
+    for i in range(0, len(seq), size):
+        yield seq[i:i+size]
+
+def fetch_followers_logged_out_many(usernames: list[str], max_workers: int = 20) -> dict[str, int | None]:
+    """Procesa múltiples perfiles en paralelo (logged-out), devolviendo {username: followers}.
+    Crea un driver por tarea; tras cada batch inserta una pausa larga para mitigar rate-limits.
+    """
+    results: dict[str, int | None] = {}
+    # Procesar en lotes del tamaño de max_workers para tener control fino y pausas entre lotes
+    for batch in chunked(usernames, max_workers):
+        print(f"🚀 Lote paralelo de {len(batch)} perfiles (max={max_workers})")
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            fut_to_user = {ex.submit(profile_followers_logged_out, u): u for u in batch}
+            for fut in as_completed(fut_to_user):
+                u = fut_to_user[fut]
+                try:
+                    results[u] = fut.result()
+                except Exception as e:
+                    print(f"❌ Error paralelo en @{u}: {e}")
+                    results[u] = None
+        # Pausa entre lotes (larga)
+        human_sleep(10.0, 20.0, label='pausa entre lotes paralelos')
+    return results
+
+
+def scrape_for_benford(limit_users: int = 30,
+                       resume: bool = True,
+                       cache_file: str = 'cache_followers.json',
+                       counts_logged_out: bool = True,
+                       max_workers: int = 20):
+    """Scrapea follower counts de seguidores del perfil objetivo.
+    - limit_users: tamaño de la muestra (hasta ~400 factible).
+    - resume: si True, reutiliza datos previos del cache.
+    - cache_file: JSON con progreso.
+    Devuelve lista de dicts {username, followers}.
+    """
+    existing = {}
+    if resume and os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r', encoding='utf-8') as f:
+                existing = json.load(f)
+        except:
+            existing = {}
+
+    driver = build_driver(headless=False)  # visible puede ser menos sospechoso para algunos desafíos
+    try:
+        login(driver)
+        open_followers_modal(driver)
+        
+        # OPTIMIZACIÓN: obtener usernames progresivamente mientras se scrapean followers en paralelo
+        usernames_collected = []
+        processing_queue = []
+        
+        # Iniciamos scraping progresivo
+        print("🚀 Iniciando scraping progresivo: scroll + extracción paralela simultánea")
+        usernames_collected = collect_usernames_progressive(
+            driver, 
+            limit=limit_users,
+            existing_cache=existing,
+            max_workers=max_workers,
+            counts_logged_out=counts_logged_out
+        )
+        
+        # Ya tenemos todos los datos procesados durante el scroll
+        results = []
+        for u in usernames_collected:
+            if u in existing:
+                results.append({'username': u, 'followers': existing[u]})
+        
+        # Guardar cache
+        try:
+            with open(cache_file, 'w', encoding='utf-8') as f:
+                json.dump(existing, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"No se pudo guardar cache: {e}")
+        return results
+    finally:
+        driver.quit()
+
+# ---------------------------------
+# Benford análisis
+# ---------------------------------
+
+def benford_analysis(results: list):
+    digits = []
+    for r in results:
+        d = first_digit(r['followers'])
+        if d:
+            digits.append(d)
+    observed_counts = {d: digits.count(d) for d in range(1, 10)}
+    total = sum(observed_counts.values()) or 1
+    observed_pct = {d: observed_counts[d] / total for d in range(1, 10)}
+    expected_pct = benford_expected()
+    return {
+        'observed_counts': observed_counts,
+        'observed_pct': observed_pct,
+        'expected_pct': expected_pct,
+        'sample_size': total
+    }
+
+# ---------------------------------
+# Generar gráfica (Matplotlib) opcional
+# ---------------------------------
+
+def benford_plot_png(analysis: dict):
+    # Usar backend no-GUI para entornos servidor/hilos
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    digits = list(range(1, 10))
+    obs = [analysis['observed_pct'][d]*100 for d in digits]
+    exp = [analysis['expected_pct'][d]*100 for d in digits]
+    fig, ax = plt.subplots(figsize=(6,4), dpi=120)
+    ax.bar(digits, obs, color='#1f77b4', alpha=0.7, label='Observado')
+    ax.plot(digits, exp, color='orange', marker='o', label='Benford esperado')
+    ax.set_xlabel('Primer dígito')
+    ax.set_ylabel('Porcentaje (%)')
+    ax.set_title('Distribución de primer dígito vs Ley de Benford')
+    ax.set_xticks(digits)
+    ax.grid(axis='y', alpha=0.3)
+    ax.legend()
+    buf = BytesIO()
+    plt.tight_layout()
+    fig.savefig(buf, format='png')
+    plt.close(fig)
+    buf.seek(0)
+    return base64.b64encode(buf.read()).decode('utf-8')
+
+if __name__ == '__main__':
+    desired = int(os.getenv('BENFORD_SAMPLE', '400'))
+    print(f'Ejecutando scrape Benford con muestra solicitada: {desired}')
+    data = scrape_for_benford(limit_users=desired, resume=True)
+    analysis = benford_analysis(data)
+    print('Resultados (primer dígito):')
+    for d in range(1,10):
+        print(f" {d}: obs={analysis['observed_pct'][d]*100:.2f}% exp={analysis['expected_pct'][d]*100:.2f}%")
+    print('Muestra total:', analysis['sample_size'])
