@@ -101,8 +101,8 @@ driver.get("https://www.instagram.com/accounts/login/")
 # Damos tiempo para que la página cargue
 time.sleep(5) 
 
-INSTA_USERNAME = "0978925415"
-INSTA_PASSWORD = "Arbolito157@"
+INSTA_USERNAME = ""
+INSTA_PASSWORD = "@"
 TARGET_ACCOUNT = "palomita.buena_onda" # Cambia esto por el nombre real
 
 

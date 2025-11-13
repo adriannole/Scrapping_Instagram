@@ -17,8 +17,8 @@ from selenium.webdriver.support import expected_conditions as EC
 import requests
 
 # Configuración básica (usar variables de entorno para credenciales en producción)
-INSTA_USERNAME = os.getenv("INSTA_USER", "0978925415")
-INSTA_PASSWORD = os.getenv("INSTA_PASS", "Arbolito157@")
+INSTA_USERNAME = os.getenv("INSTA_USER", "poner") #pner user
+INSTA_PASSWORD = os.getenv("INSTA_PASS", "contra@") #poner contraseña
 TARGET_ACCOUNT = os.getenv("INSTA_TARGET", "palomita.buena_onda")
 
 # ---------------------------------
