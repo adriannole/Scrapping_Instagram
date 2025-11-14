@@ -18,7 +18,7 @@ import pandas as pd
 
 
 # Imprime un mensaje en tu terminal para avisar que el navegador se inició.
-print("¡Navegador iniciado! 🤖 Abriendo Google...")
+print("¡Navegador iniciado!  Abriendo Google...")
 
 # ... (imports) ...
 
@@ -91,7 +91,7 @@ def get_profile_counts(username: str) -> dict:
         data["following"] = normalize_count(raw_following)
         data["ok"] = True if (data["followers"] is not None or data["following"] is not None) else False
     except Exception as e:
-        print(f"❌ Error leyendo perfil {username}: {e}")
+        print(f" Error leyendo perfil {username}: {e}")
     return data
 
 print("¡Navegador iniciado! 🤖 Abriendo Instagram...")
@@ -122,7 +122,7 @@ time.sleep(10)
 url_actual = driver.current_url
 
 if "login" not in url_actual:
-    print("✅ LOGIN EXITOSO. Continuamos la navegación.")
+    print(" LOGIN EXITOSO. Continuamos la navegación.")
     
     # Navegar a la cuenta objetivo
     driver.get(f"https://www.instagram.com/{TARGET_ACCOUNT}/")
@@ -135,7 +135,7 @@ if "login" not in url_actual:
         time.sleep(5) # Esperar a que el modal cargue completamente
 
     except Exception as e:
-        print(f"❌ Error al hacer clic en el enlace de seguidores. {e}")
+        print(f" Error al hacer clic en el enlace de seguidores. {e}")
         driver.quit()
         exit()
 
@@ -149,7 +149,7 @@ if "login" not in url_actual:
         # Estrategia 1: Buscar por clase CSS específica de Instagram
         try:
             scroll_box = driver.find_element(By.CSS_SELECTOR, 'div._aano')
-            print("✅ Contenedor encontrado (Estrategia 1: CSS _aano)")
+            print(" Contenedor encontrado (Estrategia 1: CSS _aano)")
         except:
             pass
         
@@ -157,7 +157,7 @@ if "login" not in url_actual:
         if not scroll_box:
             try:
                 scroll_box = driver.find_element(By.XPATH, '//div[@role="dialog"]//div[contains(@style, "overflow-y: scroll") or contains(@style, "overflow: auto")]')
-                print("✅ Contenedor encontrado (Estrategia 2: overflow)")
+                print(" Contenedor encontrado (Estrategia 2: overflow)")
             except:
                 pass
         
@@ -183,9 +183,9 @@ if "login" not in url_actual:
         
         # Verificar la altura inicial
         initial_height = driver.execute_script("return arguments[0].scrollHeight", scroll_box)
-        print(f"📏 Altura inicial del contenedor: {initial_height}px")
+        print(f" Altura inicial del contenedor: {initial_height}px")
 
-        print("📜 Iniciando scroll dinámico...")
+        print(" Iniciando scroll dinámico...")
         last_height = initial_height
         scroll_count = 0
         no_change_count = 0  # Contador de intentos sin cambio
@@ -208,11 +208,11 @@ if "login" not in url_actual:
             # Si no hay cambio en la altura
             if new_height == last_height:
                 no_change_count += 1
-                print(f"  ⚠️ Sin cambios detectados ({no_change_count}/3)")
+                print(f"   Sin cambios detectados ({no_change_count}/3)")
                 
                 # Esperamos 3 intentos consecutivos sin cambio para confirmar que terminó
                 if no_change_count >= 3:
-                    print(f"✅ ¡Scroll completo! Lista cargada tras {scroll_count} scrolls.")
+                    print(f" ¡Scroll completo! Lista cargada tras {scroll_count} scrolls.")
                     break
             else:
                 # Si hubo cambio, reiniciar el contador
@@ -220,7 +220,7 @@ if "login" not in url_actual:
                 last_height = new_height
         
         if scroll_count >= max_scrolls:
-            print(f"⚠️ Se alcanzó el límite máximo de scrolls ({max_scrolls}). Continuando con los datos cargados...")
+            print(f" Se alcanzó el límite máximo de scrolls ({max_scrolls}). Continuando con los datos cargados...")
 
         # -----------------------------------------------
         # 4. EXTRACCIÓN DE NOMBRES DE USUARIO
@@ -244,10 +244,10 @@ if "login" not in url_actual:
             except:
                 continue
         
-            print(f"✅ Se extrajeron {len(usernames)} nombres de usuario únicos.")
+            print(f" Se extrajeron {len(usernames)} nombres de usuario únicos.")
         
             # Mostrar los primeros 10 como muestra
-            print("\n📋 Primeros 10 seguidores:")
+            print("\n Primeros 10 seguidores:")
             for i, username in enumerate(usernames[:10], 1):
                 print(f"  {i}. @{username}")
         
@@ -257,11 +257,11 @@ if "login" not in url_actual:
         # -----------------------------------------------
         # 5. EXTRAER FOLLOWERS DE CADA PERFIL (LIMITADO)
         # -----------------------------------------------
-        print("\n🧪 Obteniendo métricas básicas de los primeros perfiles...")
+        print("\n Obteniendo métricas básicas de los primeros perfiles...")
         LIMIT = 15  # Limitar para evitar ser bloqueado
         profile_stats = []
         for idx, user in enumerate(usernames[:LIMIT], 1):
-            print(f"➡️ ({idx}/{LIMIT}) Perfil @{user}")
+            print(f" ({idx}/{LIMIT}) Perfil @{user}")
             data = get_profile_counts(user)
             profile_stats.append(data)
             # Pausa humana entre perfiles
